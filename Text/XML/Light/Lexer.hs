@@ -83,12 +83,12 @@ tokens' cs@((l,_):_) = let (as,bs) = breakn ('<' ==) cs
   -- XXX: Note, some of the lines might be a bit inacuarate
   where cvt (TxtBit x)  = TokText CData { cdLine = Just l
                                         , cdVerbatim = CDataText
-                                        , cdData = x
+                                        , cdData = TS.pack x
                                         }
         cvt (CRefBit x) = case cref_to_char x of
                             Just c -> TokText CData { cdLine = Just l
                                                     , cdVerbatim = CDataText
-                                                    , cdData = [c]
+                                                    , cdData = TS.singleton c
                                                     }
                             Nothing -> TokCRef x
 
@@ -102,7 +102,7 @@ special _ ((_,'-') : (_,'-') : cs) = skip cs
 special c ((_,'[') : (_,'C') : (_,'D') : (_,'A') : (_,'T') : (_,'A') : (_,'[')
          : cs) =
   let (xs,ts) = cdata cs
-  in TokText CData { cdLine = Just (fst c), cdVerbatim = CDataVerbatim, cdData = xs }
+  in TokText CData { cdLine = Just (fst c), cdVerbatim = CDataVerbatim, cdData = TS.pack xs }
                                                                   : tokens' ts
   where cdata ((_,']') : (_,']') : (_,'>') : ds) = ([],ds)
         cdata ((_,d) : ds)  = let (xs,ys) = cdata ds in (d:xs,ys)
@@ -112,7 +112,7 @@ special c cs =
   let (xs,ts) = munch "" 0 cs
   in TokText CData { cdLine = Just (fst c)
                    , cdVerbatim = CDataRaw
-                   , cdData = '<':'!':(reverse xs)
+                   , cdData = TS.cons '<' (TS.cons '!' (TS.pack (reverse xs)))
                    } : tokens' ts
   where munch acc nesting ((_,'>') : ds)
          | nesting == (0::Int) = ('>':acc,ds)
@@ -130,7 +130,7 @@ qualName xs         = let (as,bs) = breakn endName xs
                           (q,n)   = case break (':'==) as of
                                       (q1,_:n1) -> (Just q1, n1)
                                       _         -> (Nothing, as)
-                      in (QName { qURI = Nothing, qPrefix = q, qName = n }, bs)
+                      in (QName { qURI = Nothing, qPrefix = fmap TS.pack q, qName = TS.pack n }, bs)
   where endName x = isSpace x || x == '=' || x == '>' || x == '/'
 
 
@@ -169,7 +169,7 @@ attribs cs        = case cs of
 attrib             :: LString -> (Attr,LString)
 attrib cs           = let (ks,cs1)  = qualName cs
                           (vs,cs2)  = attr_val (dropSpace cs1)
-                      in ((Attr ks (decode_attr vs)),dropSpace cs2)
+                      in ((Attr ks (TS.pack (decode_attr vs))),dropSpace cs2)
 
 attr_val           :: LString -> (String,LString)
 attr_val ((_,'=') : cs) = string (dropSpace cs)

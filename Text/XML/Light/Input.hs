@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 --------------------------------------------------------------------
 -- |
 -- Module    : Text.XML.Light.Input
@@ -17,15 +19,18 @@ import Text.XML.Light.Lexer
 import Text.XML.Light.Types
 import Text.XML.Light.Proc
 import Text.XML.Light.Output(tagEnd)
-
-import Data.List(isPrefixOf)
+import Data.Monoid ((<>))
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Builder as BB
+import qualified Data.Text as TS
+import qualified Data.Text.Encoding as TE
 
 -- | parseXMLDoc, parse a XMLl document to maybe an element
 parseXMLDoc  :: XmlSource s => s -> Maybe Element
 parseXMLDoc xs  = strip (parseXML xs)
   where strip cs = case onlyElems cs of
                     e : es
-                      | "?xml" `isPrefixOf` qName (elName e)
+                      | "?xml" `TS.isPrefixOf` qName (elName e)
                           -> strip (map Elem es)
                       | otherwise -> Just e
                     _ -> Nothing
@@ -44,22 +49,22 @@ parse ts    = let (es,_,ts1) = nodes ([],Nothing) [] ts
 -- Information about namespaces.
 -- The first component is a map that associates prefixes to URIs,
 -- the second is the URI for the default namespace, if one was provided.
-type NSInfo = ([(String,String)],Maybe String)
+type NSInfo = ([(TS.Text,TS.Text)],Maybe TS.Text)
 
 nodes :: NSInfo -> [QName] -> [Token] -> ([Content], [QName], [Token])
 
 nodes ns ps (TokCRef ref : ts) =
   let (es,qs,ts1) = nodes ns ps ts
-  in (CRef ref : es, qs, ts1)
+  in (CRef (TS.pack ref) : es, qs, ts1)
 
 nodes ns ps (TokText txt : ts) =
   let (es,qs,ts1) = nodes ns ps ts
       (more,es1)  = case es of
                       Text cd : es1'
                         | cdVerbatim cd == cdVerbatim txt -> (cdData cd,es1')
-                      _                                   -> ([],es)
+                      _                                   -> (mempty,es)
 
-  in (Text txt { cdData = cdData txt ++ more } : es1, qs, ts1)
+  in (Text txt { cdData = cdData txt <> more } : es1, qs, ts1)
 
 nodes cur_info ps (TokStart p t as empty : ts) = (node : siblings, open, toks)
   where
@@ -85,10 +90,11 @@ nodes ns ps (TokEnd p t : ts)   = let t1 = annotName ns t
                                   -- Unknown closing tag. Insert as text.
                                   (_,[]) ->
                                     let (es,qs,ts1) = nodes ns ps ts
+                                        te = BB.toLazyByteString (tagEnd t)
                                     in (Text CData {
                                                cdLine = Just p,
                                                cdVerbatim = CDataText,
-                                               cdData = tagEnd t ""
+                                               cdData = TE.decodeUtf8 (BL.toStrict te)
                                               } : es,qs, ts1)
 
 nodes _ ps []                 = ([],ps,[])
@@ -109,6 +115,6 @@ annotAttr ns a@(Attr { attrKey = k}) =
 addNS :: Attr -> NSInfo -> NSInfo
 addNS (Attr { attrKey = key, attrVal = val }) (ns,def) =
   case (qPrefix key, qName key) of
-    (Nothing,"xmlns") -> (ns, if null val then Nothing else Just val)
+    (Nothing,"xmlns") -> (ns, if TS.null val then Nothing else Just val)
     (Just "xmlns", k) -> ((k, val) : ns, def)
     _                 -> (ns,def)

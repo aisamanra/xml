@@ -16,6 +16,7 @@ module Text.XML.Light.Types where
 
 import Data.Typeable(Typeable)
 import Data.Data(Data)
+import Data.Text(Text)
 
 -- | A line is an Integer
 type Line     = Integer
@@ -23,7 +24,7 @@ type Line     = Integer
 -- | XML content
 data Content  = Elem Element
               | Text CData
-              | CRef String
+              | CRef Text
                 deriving (Show, Typeable, Data)
 
 -- | XML elements
@@ -37,13 +38,13 @@ data Element  = Element {
 -- | XML attributes
 data Attr     = Attr {
                   attrKey :: QName,
-                  attrVal :: String
+                  attrVal :: Text
                 } deriving (Eq, Ord, Show, Typeable, Data)
 
 -- | XML CData
 data CData    = CData {
                   cdVerbatim  :: CDataKind,
-                  cdData      :: String,
+                  cdData      :: Text,
                   cdLine      :: Maybe Line
                 } deriving (Show, Typeable, Data)
 
@@ -55,9 +56,9 @@ data CDataKind
 
 -- | XML qualified names
 data QName    = QName {
-                  qName   :: String,
-                  qURI    :: Maybe String,
-                  qPrefix :: Maybe String
+                  qName   :: Text,
+                  qURI    :: Maybe Text,
+                  qPrefix :: Maybe Text
                 } deriving (Show, Typeable, Data)
 
 
@@ -77,18 +78,18 @@ instance Ord QName where
 
 -- | Blank names
 blank_name :: QName
-blank_name = QName { qName = "", qURI = Nothing, qPrefix = Nothing }
+blank_name = QName { qName = mempty, qURI = Nothing, qPrefix = Nothing }
 
 -- | Blank cdata
 blank_cdata :: CData
-blank_cdata = CData { cdVerbatim = CDataText, cdData = "", cdLine = Nothing }
+blank_cdata = CData { cdVerbatim = CDataText, cdData = mempty, cdLine = Nothing }
 
 -- | Blank elements
 blank_element :: Element
 blank_element = Element
                   { elName    = blank_name
-                  , elAttribs = []
-                  , elContent = []
+                  , elAttribs = mempty
+                  , elContent = mempty
                   , elLine    = Nothing
                   }
 
